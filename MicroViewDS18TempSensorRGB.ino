@@ -10,9 +10,10 @@ DallasTemperature sensors(&oneWire);
 const int button1Pin = 2;  // pushbutton 1 pin
 
 // RGB LED Pins
-const int RED_PIN   = 6;
-const int GREEN_PIN = 5;
-const int BLUE_PIN  = 3;
+const int RED_PIN   = 6; // Common Anode Pinout
+const int GREEN_PIN = 5; // Common Anode Pinout
+const int BLUE_PIN  = 3; // Common Anode Pinout
+
 
 // Constants for the upper and lower thresholds for LED
 const float TEMP_LIM_LO = 0;
