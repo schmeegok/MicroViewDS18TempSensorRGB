@@ -2,6 +2,7 @@
 #include <DallasTemperature.h>
 #include <OneWire.h>
 
+
 #define ONE_WIRE_BUS 0
 
 MicroViewWidget *widget1;
@@ -17,7 +18,7 @@ const int BLUE_PIN  = 3; // Common Anode Pinout
 
 // Constants for the upper and lower thresholds for LED
 const float TEMP_LIM_LO = 0;
-const float TEMP_LIM_HI = 80;
+const float TEMP_LIM_HI = 90;
 
 
 
@@ -91,8 +92,8 @@ void setup()
   pinMode(button1Pin, INPUT);
   // Initialize the Temp Sensor Library
   sensors.begin();
-  
   mode = tempSensor1Mode;
+  Serial.begin(9600);
 }
 
 void loop(void) 
@@ -129,10 +130,7 @@ void loop(void)
     degreesF_1 = sensors.getTempFByIndex(0);  // Device 1 is index 0
     degreesF_2 = sensors.getTempFByIndex(1);  // Device 1 is index 0
     degreesF_3 = (degreesF_1 + degreesF_2)/2; // Average between both sensors
-
-
     
-
     // Update the maxs
     if (degreesF_1 > maxDegreesF_1)
     {
@@ -160,6 +158,10 @@ void loop(void)
     {
         minDegreesF_3 = degreesF_3;
     }
+
+    // Print to Serial Port
+    sendToSerial(minDegreesF_1, maxDegreesF_1, degreesF_1, minDegreesF_2, maxDegreesF_2, degreesF_2, minDegreesF_3, maxDegreesF_3, degreesF_3);
+    
    
     // Mode selection
     switch(mode)
@@ -362,3 +364,35 @@ int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float temp
   }
   return (currentLedIntensity);
 }
+
+void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, float t2, float t3Min, float t3Max, float t3)
+{
+    Serial.print("T1_Min=");
+    Serial.print(t1Min);
+    Serial.print("; ");
+    Serial.print("T1_Max=");
+    Serial.print(t1Max);
+    Serial.print("; ");
+    Serial.print("T1=");
+    Serial.print(t1);
+    Serial.print("; ");
+    Serial.print("T2_Min=");
+    Serial.print(t2Min);
+    Serial.print("; ");
+    Serial.print("T2_Max=");
+    Serial.print(t2Max);
+    Serial.print("; ");
+    Serial.print("T2=");
+    Serial.print(t2);
+    Serial.print("; ");
+    Serial.print("T3_Min=");
+    Serial.print(t3Min);
+    Serial.print("; ");
+    Serial.print("T3_Max=");
+    Serial.print(t3Max);
+    Serial.print("; ");
+    Serial.print("T3=");
+    Serial.print(t3);
+    Serial.println(";");
+}
+
