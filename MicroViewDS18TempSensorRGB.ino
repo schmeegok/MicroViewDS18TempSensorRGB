@@ -1,9 +1,14 @@
+#include <SoftwareSerial.h>
 #include <MicroView.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
 
 
+
 #define ONE_WIRE_BUS 0
+
+SoftwareSerial mySerial(0, 1); // RX, TX
+
 
 MicroViewWidget *widget1;
 OneWire oneWire(ONE_WIRE_BUS);
@@ -41,6 +46,7 @@ const int numModes = 4;
 void setup() 
 {
   // put your setup code here, to run once:
+  mySerial.begin(9600);
   uView.begin();
   uView.clear(PAGE);
   uView.display();
@@ -93,7 +99,6 @@ void setup()
   // Initialize the Temp Sensor Library
   sensors.begin();
   mode = tempSensor1Mode;
-  Serial.begin(9600);
 }
 
 void loop(void) 
@@ -367,32 +372,32 @@ int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float temp
 
 void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, float t2, float t3Min, float t3Max, float t3)
 {
-    Serial.print("T1_Min=");
-    Serial.print(t1Min);
-    Serial.print("; ");
-    Serial.print("T1_Max=");
-    Serial.print(t1Max);
-    Serial.print("; ");
-    Serial.print("T1=");
-    Serial.print(t1);
-    Serial.print("; ");
-    Serial.print("T2_Min=");
-    Serial.print(t2Min);
-    Serial.print("; ");
-    Serial.print("T2_Max=");
-    Serial.print(t2Max);
-    Serial.print("; ");
-    Serial.print("T2=");
-    Serial.print(t2);
-    Serial.print("; ");
-    Serial.print("T3_Min=");
-    Serial.print(t3Min);
-    Serial.print("; ");
-    Serial.print("T3_Max=");
-    Serial.print(t3Max);
-    Serial.print("; ");
-    Serial.print("T3=");
-    Serial.print(t3);
-    Serial.println(";");
+    mySerial.print("T1_Min=");
+    mySerial.print(t1Min);
+    mySerial.print("; ");
+    mySerial.print("T1_Max=");
+    mySerial.print(t1Max);
+    mySerial.print("; ");
+    mySerial.print("T1=");
+    mySerial.print(t1);
+    mySerial.print("; ");
+    mySerial.print("T2_Min=");
+    mySerial.print(t2Min);
+    mySerial.print("; ");
+    mySerial.print("T2_Max=");
+    mySerial.print(t2Max);
+    mySerial.print("; ");
+    mySerial.print("T2=");
+    mySerial.print(t2);
+    mySerial.print("; ");
+    mySerial.print("T3_Min=");
+    mySerial.print(t3Min);
+    mySerial.print("; ");
+    mySerial.print("T3_Max=");
+    mySerial.print(t3Max);
+    mySerial.print("; ");
+    mySerial.print("T3=");
+    mySerial.print(t3);
+    mySerial.println(";");
 }
 
