@@ -69,6 +69,13 @@ void setup()
   pinMode(GREEN_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
 
+  // Test RGB LED using Temp scale
+  for (float i=0.0; i<= 90.0; i+= 0.5)
+  {
+      showTempRGB(i, 0.0, 0.0);
+      delay(100);
+  }
+  /*
   analogWrite(RED_PIN, 255);
   analogWrite(BLUE_PIN, 0);
   analogWrite(GREEN_PIN, 0);
@@ -84,7 +91,7 @@ void setup()
   analogWrite(RED_PIN, 0);
   analogWrite(BLUE_PIN, 0);
   analogWrite(GREEN_PIN, 0);
-  
+  */
   
   maxDegreesF_1 = -20;
   minDegreesF_1 = 130;
@@ -215,8 +222,9 @@ void loop(void)
             delete widget1;
 
             // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            ledIntensity = getLedIntensityFromTemp(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
-            showRGB(ledIntensity);
+            //ledIntensity = getLedIntensityFromTemp(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
+            //showRGB(ledIntensity);
+            showTempRGB(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
 
             //delay(500);// 1 s for temp
             break;
@@ -307,6 +315,7 @@ void update1widget(int16_t val) {
   widget1->setValue(val);
 }
 
+
 void showRGB(int color)
 {
   int redIntensity;
@@ -347,6 +356,74 @@ void showRGB(int color)
   analogWrite(GREEN_PIN, greenIntensity);
 }
 
+void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi)
+{
+  int redIntensity;
+  int greenIntensity;
+  int blueIntensity;
+
+  float slopeRed;
+  float slopeBlue;
+  float slopeGreen;
+  
+
+  // Python equation: RedColorValue = slopeRed1*temp + (256 - slopeRed1*(t=0.0))
+  // Python equation: BlueColorValue = 255;
+  if (currentTemp <= 32)          // zone 1
+  {
+    slopeRed   = (0.00-255.00)/(32.00-0.00);
+    slopeBlue  = 0;
+    slopeGreen = 0;
+    redIntensity = (int) (slopeRed*currentTemp + (256 - slopeRed*0));    // As Temp increases, Red Decreases
+    blueIntensity = 255;           // blue is always on
+    greenIntensity = 0;        // green is always off
+  }
+  
+  // Python equation: RedColorValue = Off
+  // y1.append(mb2*t[i] + (256.00 - mb2*t[t.index(32.0)]))
+  // y2.append(mg1*t[i] + (0.0 - mg1*t[t.index(32.0)]))
+  
+  else if (currentTemp > 32.0 && currentTemp <= 70.0)          // zone 2
+  {
+    slopeRed   = 0;
+    slopeBlue  = (0.00-255.00)/(70.00-32.00);
+    slopeGreen = (255.00-0.00)/(70.00-32.00);
+    redIntensity = 0;                                                       // As Temp increases, Keep Zero
+    blueIntensity = (int) (slopeBlue*currentTemp + (256 - slopeBlue*32.0));           // As Temp increases, blue fades out
+    greenIntensity = (int) (slopeGreen*currentTemp + (0.0 - slopeGreen*32.0));        // As Temp decreases, green fades in
+  }
+
+  // mr2*t[i] +(0.0 - mr2*t[t.index(70.1)])
+  // Blue OFF
+  // mg2*t[i] + (256.00 - mg2*t[t.index(70.1)])
+  
+  else if (currentTemp > 70.0 && currentTemp <= 90.0)          // zone 2
+  {
+    slopeRed   = (255.00-0.00)/(90.00-70.00);
+    slopeBlue  = 0;
+    slopeGreen = (0.00-255.00)/(90.00-70.00);
+    redIntensity = (int) (slopeRed*currentTemp + (0.0 - slopeRed*70.1));              // As Temp increases, red fades in
+    blueIntensity = 0;                                                        // As Temp increases, blue stays off
+    greenIntensity = (int) (slopeGreen*currentTemp + (256 - slopeGreen*70.1));        // As Temp decreases, green fades out
+  }
+
+  // Now that the brightness values have been set, command the LED
+  // to those values
+
+  mySerial.print("R=");
+  mySerial.print(redIntensity);
+  mySerial.print("; ");
+  mySerial.print("G=");
+  mySerial.print(greenIntensity);
+  mySerial.print("; ");
+  mySerial.print("B=");
+  mySerial.print(blueIntensity);
+  mySerial.println(";");
+  
+  analogWrite(RED_PIN, redIntensity);
+  analogWrite(BLUE_PIN, blueIntensity);
+  analogWrite(GREEN_PIN, greenIntensity);
+}
 
 int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float tempThresholdHi)
 {
