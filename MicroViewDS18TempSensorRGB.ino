@@ -13,7 +13,8 @@ SoftwareSerial mySerial(0, 1); // RX, TX
 MicroViewWidget *widget1;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-const int button1Pin = 2;  // pushbutton 1 pin
+//const int button1Pin = 2;  // pushbutton 1 pin
+const byte button1Pin = 2; // pushbutton 1 pin
 
 // RGB LED Pins
 const int RED_PIN   = 6; // Common Anode Pinout
@@ -32,15 +33,16 @@ float degreesF_1, maxDegreesF_1, minDegreesF_1;
 float degreesF_2, maxDegreesF_2, minDegreesF_2;
 float degreesF_3, maxDegreesF_3, minDegreesF_3;
 
-int button1State;  // variable to hold the pushbutton states
-int lastButton1State = HIGH;
+//int button1State;  // variable to hold the pushbutton states
+//int lastButton1State = HIGH;
 
-int mode; // Variable to hold the display mode
-const int tempSensor1Mode = 1;
-const int tempSensor2Mode = 2;
-const int tempSensor3Mode = 3;
-const int tempSensor4Mode = 4;
-const int numModes = 4;
+volatile byte mode = 1; // Variable to hold the display mode
+const byte tempSensor1Mode = 1;
+const byte tempSensor2Mode = 2;
+const byte tempSensor3Mode = 3;
+const byte tempSensor4Mode = 4;
+const byte LED1Mode        = 5;
+const byte numModes = 5;
 
 
 void setup() 
@@ -54,13 +56,13 @@ void setup()
   uView.setCursor(0,0);
   uView.print("MicroView\nDS18B20\nDual\nTemp\nSensor");
   uView.display();
-  delay(5000);
+  delay(3000);
   uView.clear(PAGE);
   uView.setFontType(0);
   uView.setCursor(0,0);
   uView.print("schmeegok\n@gmail.com");
   uView.display();
-  delay(5000);
+  delay(3000);
   uView.clear(PAGE);
   uView.display();
 
@@ -70,10 +72,10 @@ void setup()
   pinMode(BLUE_PIN, OUTPUT);
 
   // Test RGB LED using Temp scale
-  for (float i=0.0; i<= 90.0; i+= 0.5)
+  for (float i=-1.0; i<= 101.0; i+= 0.5)
   {
       showTempRGB(i, 0.0, 0.0);
-      delay(100);
+      delay(10);
   }
   /*
   analogWrite(RED_PIN, 255);
@@ -102,7 +104,8 @@ void setup()
 
   
   // Set up the pushbutton pins to be an input:
-  pinMode(button1Pin, INPUT);
+  pinMode(button1Pin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(button1Pin), modeChange, RISING);
   // Initialize the Temp Sensor Library
   sensors.begin();
   mode = tempSensor1Mode;
@@ -112,6 +115,8 @@ void loop(void)
 {
     // put your main code here, to run repeatedly:
     int ledIntensity;
+
+    /*
     int buttonPushed = 0;
     // First thing to do is handle the button push and mode
     button1State = digitalRead(button1Pin);
@@ -134,7 +139,7 @@ void loop(void)
         {
             mode = 1;
         }
-    }
+    }*/
 
     // Take a temperature every time
     // Take a temperature reading from the DS18B20 Sensor
@@ -276,6 +281,53 @@ void loop(void)
 
             //delay(500);// 1 s for temp
             break;
+
+        case LED1Mode:
+            // Update the microview display
+            uView.clear(PAGE);
+            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
+            widget1 = new MicroViewSlider(18, 20, minDegreesF_3*10, maxDegreesF_3*10, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw a fixed "F" text
+            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
+            uView.print("F");
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print("5");
+            
+            customGauge0(degreesF_3*10, minDegreesF_3*10, maxDegreesF_3*10);
+            uView.display();
+            delete widget1;
+
+            // Loop Through LED colors, (0,0,0) to (255,255,255) and back
+            setRGBColor(0,0,0);
+            //delay(20000);
+            
+            for (int r=0; r <= 255; r++)
+            {
+              for (int g=0; g <= 255; g++)
+              {
+                for (int b=0; b <= 255; b++)
+                {
+                  setRGBColor(r,g,b);
+                  //delayMicroseconds(10);
+                }
+              }
+            }
+            for (int r=255; r >=0; r--)
+            {
+              for (int g=255; g >= 0; g--)
+              {
+                for (int b=255; b <= 0; b--)
+                {
+                  setRGBColor(r,g,b);
+                  //delayMicroseconds(10);
+                }
+              }
+            }
+            
+            //delay(20000);// 1 s for temp
+            break;
     }
     //delay(1000);
 }
@@ -366,7 +418,6 @@ void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi
   float slopeBlue;
   float slopeGreen;
   
-
   // Python equation: RedColorValue = slopeRed1*temp + (256 - slopeRed1*(t=0.0))
   // Python equation: BlueColorValue = 255;
   if (currentTemp <= 32)          // zone 1
@@ -393,18 +444,36 @@ void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi
     greenIntensity = (int) (slopeGreen*currentTemp + (0.0 - slopeGreen*32.0));        // As Temp decreases, green fades in
   }
 
-  // mr2*t[i] +(0.0 - mr2*t[t.index(70.1)])
+  // mr2*t[i] +(0.0 - mr2*t[t.index(70.0)])
   // Blue OFF
-  // mg2*t[i] + (256.00 - mg2*t[t.index(70.1)])
+  // mg2*t[i] + (256.00 - mg2*t[t.index(70.0)])
   
   else if (currentTemp > 70.0 && currentTemp <= 90.0)          // zone 2
   {
     slopeRed   = (255.00-0.00)/(90.00-70.00);
     slopeBlue  = 0;
     slopeGreen = (0.00-255.00)/(90.00-70.00);
-    redIntensity = (int) (slopeRed*currentTemp + (0.0 - slopeRed*70.1));              // As Temp increases, red fades in
+    redIntensity = (int) (slopeRed*currentTemp + (0.0 - slopeRed*70.0));              // As Temp increases, red fades in
     blueIntensity = 0;                                                        // As Temp increases, blue stays off
-    greenIntensity = (int) (slopeGreen*currentTemp + (256 - slopeGreen*70.1));        // As Temp decreases, green fades out
+    greenIntensity = (int) (slopeGreen*currentTemp + (256 - slopeGreen*70.0));        // As Temp decreases, green fades out
+  }
+
+  
+  else if (currentTemp > 90.0 && currentTemp <= 100.0)          // zone 2
+  {
+    slopeRed   = 0;
+    slopeBlue  = (255.00-0.00)/(100.00-90.00);
+    slopeGreen = (255.00-0.00)/(100.00-90.00);
+    redIntensity = 255;              // As Temp increases, red fades in
+    blueIntensity = (int) (slopeBlue*currentTemp + (0.0 - slopeBlue*90.0));                                                        // As Temp increases, blue stays off
+    greenIntensity = (int) (slopeGreen*currentTemp + (0.0 - slopeGreen*90.0));        // As Temp decreases, green fades out
+  }
+
+  else if (currentTemp > 100.0)
+  {
+    redIntensity = 255;
+    blueIntensity = 255;
+    greenIntensity = 255;  
   }
 
   // Now that the brightness values have been set, command the LED
@@ -478,3 +547,29 @@ void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, 
     mySerial.println(";");
 }
 
+void setRGBColor(int redIntensity, int greenIntensity, int blueIntensity)
+{
+  analogWrite(RED_PIN, redIntensity);
+  analogWrite(GREEN_PIN, greenIntensity);
+  analogWrite(BLUE_PIN, blueIntensity);
+}
+
+void modeChange()
+{
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  // If interrupts come faster than 200ms, assume it's a bounce
+  if (interrupt_time - last_interrupt_time > 200)
+  {
+    // Do your thing
+    if (mode < numModes)
+    {
+      mode += 1;
+    }
+    else if (mode == numModes)
+    {
+        mode = 1;
+    }
+  }
+  last_interrupt_time = interrupt_time;
+}
