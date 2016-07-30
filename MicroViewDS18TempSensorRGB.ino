@@ -42,7 +42,7 @@ const byte tempSensor2Mode = 2;
 const byte tempSensor3Mode = 3;
 const byte tempSensor4Mode = 4;
 const byte LED1Mode        = 5;
-const byte numModes = 5;
+const byte numModes = 4;
 
 
 void setup() 
@@ -299,34 +299,52 @@ void loop(void)
             uView.display();
             delete widget1;
 
-            // Loop Through LED colors, (0,0,0) to (255,255,255) and back
-            setRGBColor(0,0,0);
-            //delay(20000);
-            
-            for (int r=0; r <= 255; r++)
+            // Loop Through LED colors, (0,0,0) to (255,255,255) and back            
+            int r = 0;
+            int g = 0;
+            int b = 0;
+            setRGBColor(r,g,b);
+                        
+            for (r=0; r <= 255; r++)
             {
-              for (int g=0; g <= 255; g++)
-              {
-                for (int b=0; b <= 255; b++)
-                {
-                  setRGBColor(r,g,b);
-                  //delayMicroseconds(10);
-                }
-              }
+              setRGBColor(r,g,b);
+              delay(10);
             }
-            for (int r=255; r >=0; r--)
+            r = 255;
+            for (g=0; g <= 255; g++)
             {
-              for (int g=255; g >= 0; g--)
-              {
-                for (int b=255; b <= 0; b--)
-                {
-                  setRGBColor(r,g,b);
-                  //delayMicroseconds(10);
-                }
-              }
+              setRGBColor(r,g,b);
+              delay(10);
             }
-            
+            g = 255;
+            for (b=0; b <= 255; b++)
+            {
+              setRGBColor(r,g,b);
+              delay(10);
+            }
+            b = 255;  
+            delay(10);
+            for (r=255; r >=0; r--)
+            {
+              setRGBColor(r,g,b);
+              delay(10);
+            }
+            r = 0;
+            for (g=255; g >= 0; g--)
+            {
+              setRGBColor(r,g,b);
+              delay(10);
+            }
+            b = 0;
+            for (b=255; b <= 0; b--)
+            {
+              setRGBColor(r,g,b);
+              delay(10);
+            }
+                        
             //delay(20000);// 1 s for temp
+            mode += 1;
+            delay(10);
             break;
     }
     //delay(1000);
@@ -559,7 +577,7 @@ void modeChange()
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce
-  if (interrupt_time - last_interrupt_time > 200)
+  if (interrupt_time - last_interrupt_time > 400)
   {
     // Do your thing
     if (mode < numModes)
