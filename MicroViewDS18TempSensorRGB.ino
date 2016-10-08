@@ -5,7 +5,7 @@
 
 
 
-#define ONE_WIRE_BUS 0
+#define ONE_WIRE_BUS A0
 
 SoftwareSerial mySerial(0, 1); // RX, TX
 
@@ -40,9 +40,9 @@ volatile byte mode = 1; // Variable to hold the display mode
 const byte tempSensor1Mode = 1;
 const byte tempSensor2Mode = 2;
 const byte tempSensor3Mode = 3;
-const byte tempSensor4Mode = 4;
-const byte LED1Mode        = 5;
-const byte numModes = 4;
+//const byte tempSensor4Mode = 4;
+//const byte LED1Mode        = 5;
+const byte numModes = 3;
 
 
 void setup() 
@@ -108,7 +108,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(button1Pin), modeChange, RISING);
   // Initialize the Temp Sensor Library
   sensors.begin();
-  mode = tempSensor1Mode;
+  mode = tempSensor2Mode;
 }
 
 void loop(void) 
@@ -183,7 +183,7 @@ void loop(void)
     // Mode selection
     switch(mode)
     {
-        // Mode 1: Use both sensors, average the temperatures, set the RGB based on the min/max values
+        // Mode 1: Use both sensors, average the temperatures, set the RGB based on the temperature
         case tempSensor1Mode:
             // Update the microview display
             uView.clear(PAGE);
@@ -195,19 +195,19 @@ void loop(void)
 
             uView.setCursor(0,0);
             uView.setFontType(0);
-            uView.print("1");
+            uView.print("1         B");
             
             customGauge0(degreesF_3*10, minDegreesF_3*10, maxDegreesF_3*10);
             uView.display();
             delete widget1;
 
             // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            ledIntensity = getLedIntensityFromTemp(degreesF_3, minDegreesF_3, maxDegreesF_3);
-            showRGB(ledIntensity);
-
+            //ledIntensity = getLedIntensityFromTemp(degreesF_3, minDegreesF_3, maxDegreesF_3);
+            //showRGB(ledIntensity);
+            showTempRGB(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
             //delay(500);// 1 s for temp
             break;
-
+        /*
         // Mode 2: Use both sensors, average the temperatures, set the RGB based on the hard coded temp threshold values
         case tempSensor2Mode:
             // Update the microview display
@@ -233,8 +233,9 @@ void loop(void)
 
             //delay(500);// 1 s for temp
             break;
-            
-        case tempSensor3Mode:
+        */    
+        // Outside Sensor (Sensor 1)
+        case tempSensor2Mode: // Outdoor Sensor
             // Update the microview display
             uView.clear(PAGE);
             //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
@@ -245,20 +246,22 @@ void loop(void)
 
             uView.setCursor(0,0);
             uView.setFontType(0);
-            uView.print("3");
+            uView.print("2         O");
             
             customGauge0(degreesF_1*10, minDegreesF_1*10, maxDegreesF_1*10);
             uView.display();
             delete widget1;
 
             // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            ledIntensity = getLedIntensityFromTemp(degreesF_1, minDegreesF_1, maxDegreesF_1);
-            showRGB(ledIntensity);
+            //ledIntensity = getLedIntensityFromTemp(degreesF_1, minDegreesF_1, maxDegreesF_1);
+            //showRGB(ledIntensity);
+            showTempRGB(degreesF_1, TEMP_LIM_LO, TEMP_LIM_HI);
 
             //delay(500);// 1 s for temp
             break;
 
-        case tempSensor4Mode:
+        // Inside Sensor (sensor 2)
+        case tempSensor3Mode: // Inside Sensor
             // Update the microview display
             uView.clear(PAGE);
             //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
@@ -269,19 +272,20 @@ void loop(void)
 
             uView.setCursor(0,0);
             uView.setFontType(0);
-            uView.print("4");
+            uView.print("3         I");
             
             customGauge0(degreesF_2*10, minDegreesF_2*10, maxDegreesF_2*10);
             uView.display();
             delete widget1;
 
             // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            ledIntensity = getLedIntensityFromTemp(degreesF_2, minDegreesF_2, maxDegreesF_2);
-            showRGB(ledIntensity);
-
+            //ledIntensity = getLedIntensityFromTemp(degreesF_2, minDegreesF_2, maxDegreesF_2);
+            //showRGB(ledIntensity);
+            showTempRGB(degreesF_2, TEMP_LIM_LO, TEMP_LIM_HI);
             //delay(500);// 1 s for temp
             break;
 
+        /*
         case LED1Mode:
             // Update the microview display
             uView.clear(PAGE);
@@ -346,6 +350,7 @@ void loop(void)
             mode += 1;
             delay(10);
             break;
+        */
     }
     //delay(1000);
 }
@@ -385,7 +390,7 @@ void update1widget(int16_t val) {
   widget1->setValue(val);
 }
 
-
+/*
 void showRGB(int color)
 {
   int redIntensity;
@@ -425,7 +430,7 @@ void showRGB(int color)
   analogWrite(BLUE_PIN, blueIntensity);
   analogWrite(GREEN_PIN, greenIntensity);
 }
-
+*/
 void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi)
 {
   int redIntensity;
@@ -512,6 +517,7 @@ void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi
   analogWrite(GREEN_PIN, greenIntensity);
 }
 
+/*
 int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float tempThresholdHi)
 {
   int currentLedIntensity;
@@ -533,7 +539,7 @@ int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float temp
   }
   return (currentLedIntensity);
 }
-
+*/
 void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, float t2, float t3Min, float t3Max, float t3)
 {
     mySerial.print("T1_Min=");
