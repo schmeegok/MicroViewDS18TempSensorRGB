@@ -104,6 +104,7 @@ void setup()
   // Initialize the Temp Sensor Library
   sensors.begin();
   mode = outsideTempMode;
+  //mode = baroPressMode;
 }
 
 void loop(void) 
@@ -114,6 +115,7 @@ void loop(void)
     // Take a temperature every time
     // Take a temperature reading from the DS18B20 Sensor
     sensors.requestTemperatures(); // Send the command to get temperatures
+    //degreesF_1 = 70.12; // Simulated Value
     degreesF_1 = sensors.getTempFByIndex(0);  // Device 1 is index 0
     degreesF_2 = sensors.getTempFByIndex(1);  // Device 1 is index 0
     degreesF_3 = (degreesF_1 + degreesF_2)/2; // Average between both sensors
@@ -121,7 +123,18 @@ void loop(void)
     // Get the pressure and temperature from the barometer
     baroTemp = barometer.getTemperature(FAHRENHEIT)/100;
     absPress = barometer.getPressure(MODE_ULTRA);
+
+    // Sometime this may return negative values so we only want good values
     relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    //relPress = 30.01; // Simulated Value
+    while (relPress < 25.00 || relPress > 32.00)
+    {
+        mySerial.print("Pressure measurement out of range (25.00 to 32.00): ");
+        mySerial.print(relPress);
+        mySerial.println(" in-hg");
+        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    }
+    
     
     // Update the maxs
     if (degreesF_1 > maxDegreesF_1)
@@ -169,12 +182,13 @@ void loop(void)
     }
 
     // Print to Serial Port
-    sendToSerial(minDegreesF_1, maxDegreesF_1, degreesF_1, minDegreesF_2, maxDegreesF_2, degreesF_2, minDegreesF_3, maxDegreesF_3, degreesF_3);
+    sendToSerial();
     
    
     // Mode selection
     switch(mode)
     {
+        /* Working version of the "regular" guage
         // Barometric Pressure Mode: Display the barometric Pressure information
         case baroPressMode:
             // Update the microview display
@@ -194,7 +208,28 @@ void loop(void)
             delete widget1;
             showTempRGB(relPress, TEMP_LIM_LO, TEMP_LIM_HI);
             break;
-    
+        */
+
+        // Barometric Pressure Mode: Display the barometric Pressure information
+        case baroPressMode:
+            // Update the microview display
+            uView.clear(PAGE);
+            widget1 = new MicroViewGauge(31, 18, 250, 320, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw the fixed "inhg" text
+            uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
+            uView.print("in-hg");
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print("BP");
+
+            customGauge0(relPress*10, relPressMin*10, relPressMax*10, 0);
+            //update1widget(relPress*10);
+            uView.display();
+            delete widget1;
+            showTempRGB(relPress, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+        
         // Outside Temp Sensor Mode (Sensor 1)
         case outsideTempMode: // Outdoor Sensor
             // Update the microview display
@@ -209,7 +244,7 @@ void loop(void)
             uView.setFontType(0);
             uView.print("TO");
             
-            customGauge0(degreesF_1*10, minDegreesF_1*10, maxDegreesF_1*10);
+            customGauge0(degreesF_1*10, minDegreesF_1*10, maxDegreesF_1*10, 1);
             uView.display();
             delete widget1;
 
@@ -230,7 +265,7 @@ void loop(void)
             uView.setFontType(0);
             uView.print("TI");
             
-            customGauge0(degreesF_2*10, minDegreesF_2*10, maxDegreesF_2*10);
+            customGauge0(degreesF_2*10, minDegreesF_2*10, maxDegreesF_2*10, 1);
             uView.display();
             delete widget1;
             
@@ -251,7 +286,7 @@ void loop(void)
             uView.setFontType(0);
             uView.print("TB");
             
-            customGauge0(baroTemp*10, baroTempMin*10, baroTempMax*10);
+            customGauge0(baroTemp*10, baroTempMin*10, baroTempMax*10, 1);
             uView.display();
             delete widget1;
             
@@ -263,11 +298,11 @@ void loop(void)
 }// End of Main
 
 // Update function for Temp Sensor Screen (Demo 12?)
-void customGauge0(int16_t val, int16_t minVal, int16_t maxVal) {
+void customGauge0(int16_t val, int16_t minVal, int16_t maxVal, uint8_t mainFontSize) {
   widget1->setValue(val);
   
   uView.setCursor(widget1->getX() - 0, widget1->getY() - 18);
-  uView.setFontType(1);
+  uView.setFontType(mainFontSize);
   // add leading space if necessary, to right justify.
   // only 2 digit (plus decimal) numbers are supported.
   if (val < 100 && val > 0) 
@@ -383,34 +418,34 @@ void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi
   analogWrite(GREEN_PIN, greenIntensity);
 }
 
-void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, float t2, float t3Min, float t3Max, float t3)
+void sendToSerial()
 {
     mySerial.print("T1_Min=");
-    mySerial.print(t1Min);
+    mySerial.print(minDegreesF_1);
     mySerial.print("; ");
     mySerial.print("T1_Max=");
-    mySerial.print(t1Max);
+    mySerial.print(maxDegreesF_1);
     mySerial.print("; ");
     mySerial.print("T1=");
-    mySerial.print(t1);
+    mySerial.print(degreesF_1);
     mySerial.print("; ");
     mySerial.print("T2_Min=");
-    mySerial.print(t2Min);
+    mySerial.print(minDegreesF_2);
     mySerial.print("; ");
     mySerial.print("T2_Max=");
-    mySerial.print(t2Max);
+    mySerial.print(maxDegreesF_2);
     mySerial.print("; ");
     mySerial.print("T2=");
-    mySerial.print(t2);
+    mySerial.print(degreesF_2);
     mySerial.print("; ");
     mySerial.print("T3_Min=");
-    mySerial.print(t3Min);
+    mySerial.print(minDegreesF_3);
     mySerial.print("; ");
     mySerial.print("T3_Max=");
-    mySerial.print(t3Max);
+    mySerial.print(maxDegreesF_3);
     mySerial.print("; ");
     mySerial.print("T3=");
-    mySerial.print(t3);
+    mySerial.print(degreesF_3);
     mySerial.print("; ");
     mySerial.print("TBr=");
     mySerial.print(baroTemp);
