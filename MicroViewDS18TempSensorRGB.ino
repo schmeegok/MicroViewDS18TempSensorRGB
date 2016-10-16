@@ -4,6 +4,7 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <t5403.h>
+#include "SparkFun_Si7021_Breakout_Library.h"
 
 #define ONE_WIRE_BUS A0
 
@@ -14,6 +15,7 @@ MicroViewWidget *widget1;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 T5403 barometer(MODE_I2C);
+Weather humSensor;
 //const int button1Pin = 2;  // pushbutton 1 pin
 const byte button1Pin = 2; // pushbutton 1 pin
 
@@ -25,7 +27,9 @@ const int BLUE_PIN  = 3; // Common Anode Pinout
 // Temp Variables
 float degF_Out, maxDegF_Out, minDegF_Out;
 float degF_In, maxDegF_In, minDegF_In;
-//float degreesF_3, maxDegreesF_3, minDegreesF_3;
+
+float relHumidity, relHumidityMax, relHumidityMin;
+float humTempf, humTempfMax, humTempfMin;
 
 // Baro Variables
 double relPress, relPressMax, relPressMin, absPress;
@@ -41,7 +45,8 @@ const byte baroPressMode   = 1;
 const byte outsideTempMode = 2;
 const byte insideTempMode  = 3;
 const byte baroTempMode    = 4;
-const byte numModes = 4;
+const byte humTempMode     = 5;
+const byte numModes = 5;
 
 
 void setup() 
@@ -52,6 +57,7 @@ void setup()
   // Initialize the Temp Sensor Library
   sensors.begin();
   barometer.begin();
+  humSensor.begin();
   
   uView.begin();
   uView.clear(PAGE);
@@ -123,8 +129,16 @@ void loop(void)
         mySerial.println(F(" in-hg"));
         relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
     }
-    
-    
+
+    // Measure Relative Humidity from the HTU21D or Si7021
+    relHumidity = humSensor.getRH();
+ 
+    // Measure Temperature from the HTU21D or Si7021
+    humTempf = humSensor.getTempF();
+    // Temperature is measured every time RH is requested.
+    // It is faster, therefore, to read it from previous RH
+    // measurement with getTemp() instead with readTemp()
+     
     // Update the maxs
     if (degF_Out > maxDegF_Out)
     {
@@ -134,10 +148,6 @@ void loop(void)
     {
         maxDegF_In = degF_In;
     }
-    //if (degreesF_3 > maxDegreesF_3)
-    //{
-    //    maxDegreesF_3 = degreesF_3;
-    //}
     if (baroTemp > baroTempMax)
     {
         baroTempMax = baroTemp;
@@ -146,7 +156,10 @@ void loop(void)
     {
         relPressMax = relPress;
     }
-    
+    if (relHumidity > relHumidityMax)
+    {
+        relHumidityMax = relHumidity;
+    }
             
     // Update the mins
     if (degF_Out < minDegF_Out)
@@ -157,10 +170,6 @@ void loop(void)
     {
         minDegF_In = degF_In;
     }
-    //if (degreesF_3 < minDegreesF_3)
-    //{
-    //    minDegreesF_3 = degreesF_3;
-    //}
     if (baroTemp < baroTempMin)
     {
         baroTempMin = baroTemp;
@@ -168,6 +177,10 @@ void loop(void)
     if (relPress < relPressMin)
     {
         relPressMin = relPress;
+    }
+    if (relHumidity < relHumidityMin)
+    {
+        relHumidityMin = relHumidity;
     }
 
     // Print to Serial Port
@@ -280,6 +293,26 @@ void loop(void)
             delete widget1;
             
             showTempRGB(baroTemp);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+
+        // Relative Humidity Mode: Display the barometric Pressure information
+        case humTempMode:
+            // Update the microview display
+            uView.clear(PAGE);
+            widget1 = new MicroViewGauge(31, 18, 0, 1000, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw the fixed "inhg" text
+            uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
+            uView.print(F("%"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("RH"));
+
+            customGauge0(relHumidity*10, relHumidityMin*10, relHumidityMax*10, 0);
+            //update1widget(relPress*10);
+            uView.display();
+            delete widget1;
+            showTempRGB(relHumidity);//, TEMP_LIM_LO, TEMP_LIM_HI);
             break;
 
         
@@ -427,15 +460,24 @@ void sendToSerial()
     mySerial.print(F("T2="));
     mySerial.print(degF_In);
     mySerial.print(F("; "));
-    //mySerial.print(F("T3_Min="));
-    //mySerial.print(minDegreesF_3);
-    //mySerial.print(F("; "));
-    //mySerial.print(F("T3_Max="));
-    //mySerial.print(maxDegreesF_3);
-    //mySerial.print(F("; "));
-    //mySerial.print(F("T3="));
-    //mySerial.print(degreesF_3);
-    //mySerial.print(F("; "));
+    mySerial.print(F("RH_Min="));
+    mySerial.print(relHumidityMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("RH_Max="));
+    mySerial.print(relHumidityMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("RH="));
+    mySerial.print(relHumidity);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh_Min="));
+    mySerial.print(humTempfMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh_Max="));
+    mySerial.print(humTempfMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh="));
+    mySerial.print(humTempf);
+    mySerial.print(F("; "));
     mySerial.print(F("TBr_Min="));
     mySerial.print(baroTempMin);
     mySerial.print(F("; "));
@@ -468,6 +510,10 @@ void resetStatistics()
     baroTempMin = 130;
     relPressMax = 28.00;
     relPressMin = 31.00;
+    relHumidityMax = 0.0;
+    relHumidityMin = 100.0;
+    humTempfMax = -20.0;
+    humTempfMin = 130.0;
 }
 
 /*void setRGBColor(int redIntensity, int greenIntensity, int blueIntensity)
