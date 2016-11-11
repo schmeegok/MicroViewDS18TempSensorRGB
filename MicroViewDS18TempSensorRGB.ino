@@ -105,7 +105,9 @@ void setup()
 void loop(void) 
 {
     // put your main code here, to run repeatedly:
-    int ledIntensity;    
+    int ledIntensity;
+    int attempts = 0;
+    int maxAttempts = 25;    
 
     // Take a temperature every time
     // Take a temperature reading from the DS18B20 Sensor
@@ -122,12 +124,24 @@ void loop(void)
     // Sometime this may return negative values so we only want good values
     relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
     //relPress = 30.01; // Simulated Value
-    while (relPress < 28.00 || relPress > 31.00)
+     // Bumped this from 28:32 to 26:34 since travelling down elevation caused way high unajusted pressure
+    while (relPress < 26.00 )
     {
-        mySerial.print(F("Pressure measurement out of range (28.00 to 31.00): "));
+        mySerial.print(F("Pressure measurement too low (range 26.00 to 34.00): "));
         mySerial.print(relPress);
         mySerial.println(F(" in-hg"));
         relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    }
+    while (relPress > 34 && attempts < maxAttempts)
+    {
+        mySerial.print(F("Pressure measurement too high (range 26.00 to 34.00): "));
+        mySerial.print(relPress);
+        mySerial.print(F(" in-hg; Retry "));
+        mySerial.print(attempts);
+        mySerial.print(F(" of "));
+        mySerial.println(maxAttempts);
+        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+        attempts += 1;
     }
 
     // Measure Relative Humidity from the HTU21D or Si7021
@@ -216,7 +230,7 @@ void loop(void)
         case baroPressMode:
             // Update the microview display
             uView.clear(PAGE);
-            widget1 = new MicroViewGauge(31, 18, 280, 310, WIDGETSTYLE0 + WIDGETNOVALUE);
+            widget1 = new MicroViewGauge(31, 18, 260, 340, WIDGETSTYLE0 + WIDGETNOVALUE);
             // draw the fixed "inhg" text
             uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
             uView.print(F("in-hg"));
