@@ -34,7 +34,8 @@ float humTempf, humTempfMax, humTempfMin;
 // Baro Variables
 double relPress, relPressMax, relPressMin, absPress;
 float baroTemp, baroTempMax, baroTempMin;
-double baseAltitude_m = 2591.11; //8501 feet
+//double baseAltitude_m = 2591.11; //8501 feet Woodland Park
+double baseAltitude_m = 2028.00; //6654 feet Colorado Springs
 double calFactor = 0.07;
 
 //int button1State;  // variable to hold the pushbutton states
