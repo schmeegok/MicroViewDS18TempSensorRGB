@@ -2,8 +2,10 @@
 #include <MicroView.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
-
-
+#include <Wire.h>
+#include <t5403.h>
+#include "SparkFun_Si7021_Breakout_Library.h"
+#include <EEPROM.h>
 
 #define ONE_WIRE_BUS A0
 
@@ -13,6 +15,8 @@ SoftwareSerial mySerial(0, 1); // RX, TX
 MicroViewWidget *widget1;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
+T5403 barometer(MODE_I2C);
+Weather humSensor;
 //const int button1Pin = 2;  // pushbutton 1 pin
 const byte button1Pin = 2; // pushbutton 1 pin
 
@@ -21,46 +25,56 @@ const int RED_PIN   = 6; // Common Anode Pinout
 const int GREEN_PIN = 5; // Common Anode Pinout
 const int BLUE_PIN  = 3; // Common Anode Pinout
 
-
-// Constants for the upper and lower thresholds for LED
-const float TEMP_LIM_LO = 0;
-const float TEMP_LIM_HI = 90;
-
-
-
 // Temp Variables
-float degreesF_1, maxDegreesF_1, minDegreesF_1;
-float degreesF_2, maxDegreesF_2, minDegreesF_2;
-float degreesF_3, maxDegreesF_3, minDegreesF_3;
+float degF_Out, maxDegF_Out, minDegF_Out;
+float degF_In, maxDegF_In, minDegF_In;
+
+float relHumidity, relHumidityMax, relHumidityMin;
+float humTempf, humTempfMax, humTempfMin;
+
+// Baro Variables
+double relPress, relPressMax, relPressMin, absPress;
+float baroTemp, baroTempMax, baroTempMin;
+//double baseAltitude_m = 2591.11; //8501 feet Woodland Park
+double baseAltitude_m;// = 2028.00; //6654 feet Colorado Springs
+double calFactor = 0.07;
 
 //int button1State;  // variable to hold the pushbutton states
 //int lastButton1State = HIGH;
 
 volatile byte mode = 1; // Variable to hold the display mode
-const byte tempSensor1Mode = 1;
-const byte tempSensor2Mode = 2;
-const byte tempSensor3Mode = 3;
-//const byte tempSensor4Mode = 4;
-//const byte LED1Mode        = 5;
-const byte numModes = 3;
+//const byte baroPressMode   = 1;
+const byte altitudeMode    = 1;
+const byte outsideTempMode = 2;
+const byte insideTempMode  = 3;
+const byte baroTempMode    = 4;
+const byte humTempMode     = 5;
+const byte numModes = 5;
+byte eepromByte;
 
 
 void setup() 
 {
   // put your setup code here, to run once:
   mySerial.begin(9600);
+
+  // Initialize the Temp Sensor Library
+  sensors.begin();
+  barometer.begin();
+  humSensor.begin();
+  
   uView.begin();
   uView.clear(PAGE);
   uView.display();
   uView.setFontType(0);
   uView.setCursor(0,0);
-  uView.print("MicroView\nDS18B20\nDual\nTemp\nSensor");
+  uView.print(F("MicroView\nDS18B20\nDual\nTemp\nSensor"));
   uView.display();
   delay(3000);
   uView.clear(PAGE);
   uView.setFontType(0);
   uView.setCursor(0,0);
-  uView.print("schmeegok\n@gmail.com");
+  uView.print(F("schmeegok\n@gmail.com"));
   uView.display();
   delay(3000);
   uView.clear(PAGE);
@@ -74,293 +88,294 @@ void setup()
   // Test RGB LED using Temp scale
   for (float i=-1.0; i<= 101.0; i+= 0.5)
   {
-      showTempRGB(i, 0.0, 0.0);
-      delay(10);
+      showTempRGB(i);//, 0.0, 0.0);
+      delay(5);
   }
-  /*
-  analogWrite(RED_PIN, 255);
-  analogWrite(BLUE_PIN, 0);
-  analogWrite(GREEN_PIN, 0);
-  delay(1000);
-  analogWrite(RED_PIN, 0);
-  analogWrite(BLUE_PIN, 255);
-  analogWrite(GREEN_PIN, 0);
-  delay(1000);
-  analogWrite(RED_PIN, 0);
-  analogWrite(BLUE_PIN, 0);
-  analogWrite(GREEN_PIN, 255);
-  delay(3000);
-  analogWrite(RED_PIN, 0);
-  analogWrite(BLUE_PIN, 0);
-  analogWrite(GREEN_PIN, 0);
-  */
-  
-  maxDegreesF_1 = -20;
-  minDegreesF_1 = 130;
-  maxDegreesF_2 = -20;
-  minDegreesF_2 = 130;
-  maxDegreesF_3 = -20;
-  minDegreesF_3 = 130;
 
+  resetStatistics();
   
   // Set up the pushbutton pins to be an input:
   pinMode(button1Pin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(button1Pin), modeChange, RISING);
+  
   // Initialize the Temp Sensor Library
-  sensors.begin();
-  mode = tempSensor2Mode;
+  //sensors.begin();
+  //barometer.begin();
+  
+  mode = outsideTempMode;
+  //mode = baroPressMode;
+  baseAltitude_m = 2028.00; //6654 feet Colorado Springs
+
+  eepromByte = EEPROM.read(0);
+  if (eepromByte == 0xFF)
+  {
+    EEPROM.put(0,baseAltitude_m);
+  }
+  else
+  {
+    baseAltitude_m = EEPROM.get(0,baseAltitude_m);
+  }
 }
 
 void loop(void) 
 {
     // put your main code here, to run repeatedly:
     int ledIntensity;
-
-    /*
-    int buttonPushed = 0;
-    // First thing to do is handle the button push and mode
-    button1State = digitalRead(button1Pin);
-    if (button1State != HIGH)
-    {
-        buttonPushed = 1;
-    }
-    else
-    {
-        buttonPushed = 0;
-    }
-
-    if (buttonPushed == 1)
-    {    
-        if (mode < numModes)
-        {
-            mode += 1;
-        }
-        else if (mode == numModes)
-        {
-            mode = 1;
-        }
-    }*/
+    int attempts = 0;
+    int maxAttempts = 25;    
 
     // Take a temperature every time
     // Take a temperature reading from the DS18B20 Sensor
     sensors.requestTemperatures(); // Send the command to get temperatures
-    degreesF_1 = sensors.getTempFByIndex(0);  // Device 1 is index 0
-    degreesF_2 = sensors.getTempFByIndex(1);  // Device 1 is index 0
-    degreesF_3 = (degreesF_1 + degreesF_2)/2; // Average between both sensors
+    //degF_Out = 70.12; // Simulated Value
+    degF_Out = sensors.getTempFByIndex(0);  // Device 1 is index 0
+    degF_In = sensors.getTempFByIndex(1);  // Device 1 is index 0
+    //degreesF_3 = (degF_Out + degF_In)/2; // Average between both sensors
+
+    // Get the pressure and temperature from the barometer
+    baroTemp = barometer.getTemperature(FAHRENHEIT)/100.00;
+    absPress = barometer.getPressure(MODE_ULTRA);
+
+    baseAltitude_m = altitude(absPress,101325.000);
     
+    // Sometime this may return negative values so we only want good values
+    relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    //relPress = 30.01; // Simulated Value
+     // Bumped this from 28:32 to 26:34 since travelling down elevation caused way high unajusted pressure
+    while (relPress < 26.00 )
+    {
+        mySerial.print(F("Pressure measurement too low (range 26.00 to 34.00): "));
+        mySerial.print(relPress);
+        mySerial.println(F(" in-hg"));
+        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    }
+    while (relPress > 34 && attempts < maxAttempts)
+    {
+        mySerial.print(F("Pressure measurement too high (range 26.00 to 34.00): "));
+        mySerial.print(relPress);
+        mySerial.print(F(" in-hg; Retry "));
+        mySerial.print(attempts);
+        mySerial.print(F(" of "));
+        mySerial.println(maxAttempts);
+        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+        attempts += 1;
+    }
+
+    // Measure Relative Humidity from the HTU21D or Si7021
+    relHumidity = humSensor.getRH();
+ 
+    // Measure Temperature from the HTU21D or Si7021
+    humTempf = humSensor.getTempF();
+    // Temperature is measured every time RH is requested.
+    // It is faster, therefore, to read it from previous RH
+    // measurement with getTemp() instead with readTemp()
+     
     // Update the maxs
-    if (degreesF_1 > maxDegreesF_1)
+    if (degF_Out > maxDegF_Out)
     {
-        maxDegreesF_1 = degreesF_1;
+        maxDegF_Out = degF_Out;
     }
-    if (degreesF_2 > maxDegreesF_2)
+    if (degF_In > maxDegF_In)
     {
-        maxDegreesF_2 = degreesF_2;
+        maxDegF_In = degF_In;
     }
-    if (degreesF_3 > maxDegreesF_3)
+    if (baroTemp > baroTempMax)
     {
-        maxDegreesF_3 = degreesF_3;
+        baroTempMax = baroTemp;
+    }
+    if (relPress > relPressMax)
+    {
+        relPressMax = relPress;
+    }
+    if (relHumidity > relHumidityMax)
+    {
+        relHumidityMax = relHumidity;
     }
             
     // Update the mins
-    if (degreesF_1 < minDegreesF_1)
+    if (degF_Out < minDegF_Out)
     {
-        minDegreesF_1 = degreesF_1;
+        minDegF_Out = degF_Out;
     }
-    if (degreesF_2 < minDegreesF_2)
+    if (degF_In < minDegF_In)
     {
-        minDegreesF_2 = degreesF_2;
+        minDegF_In = degF_In;
     }
-    if (degreesF_3 < minDegreesF_3)
+    if (baroTemp < baroTempMin)
     {
-        minDegreesF_3 = degreesF_3;
+        baroTempMin = baroTemp;
+    }
+    if (relPress < relPressMin)
+    {
+        relPressMin = relPress;
+    }
+    if (relHumidity < relHumidityMin)
+    {
+        relHumidityMin = relHumidity;
     }
 
     // Print to Serial Port
-    sendToSerial(minDegreesF_1, maxDegreesF_1, degreesF_1, minDegreesF_2, maxDegreesF_2, degreesF_2, minDegreesF_3, maxDegreesF_3, degreesF_3);
+    sendToSerial();
     
    
     // Mode selection
     switch(mode)
     {
-        // Mode 1: Use both sensors, average the temperatures, set the RGB based on the temperature
-        case tempSensor1Mode:
+        /* Working version of the "regular" guage
+        // Barometric Pressure Mode: Display the barometric Pressure information
+        case baroPressMode:
             // Update the microview display
             uView.clear(PAGE);
             //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
-            widget1 = new MicroViewSlider(18, 20, minDegreesF_3*10, maxDegreesF_3*10, WIDGETSTYLE0 + WIDGETNOVALUE);
-            // draw a fixed "F" text
-            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
-            uView.print("F");
+            widget1 = new MicroViewSlider(18, 20, relPressMin*10, relPressMax*10, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw a fixed "inhg" text
+            uView.setCursor(widget1->getX() + 6, widget1->getY() + 10);
+            uView.print("inhg");
 
             uView.setCursor(0,0);
             uView.setFontType(0);
-            uView.print("1         B");
+            uView.print("BP");
             
-            customGauge0(degreesF_3*10, minDegreesF_3*10, maxDegreesF_3*10);
+            customGauge0(relPress*10, relPressMin*10, relPressMax*10);
             uView.display();
             delete widget1;
-
-            // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            //ledIntensity = getLedIntensityFromTemp(degreesF_3, minDegreesF_3, maxDegreesF_3);
-            //showRGB(ledIntensity);
-            showTempRGB(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
-            //delay(500);// 1 s for temp
-            break;
-        /*
-        // Mode 2: Use both sensors, average the temperatures, set the RGB based on the hard coded temp threshold values
-        case tempSensor2Mode:
-            // Update the microview display
-            uView.clear(PAGE);
-            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
-            widget1 = new MicroViewSlider(18, 20, minDegreesF_3*10, maxDegreesF_3*10, WIDGETSTYLE0 + WIDGETNOVALUE);
-            // draw a fixed "F" text
-            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
-            uView.print("F");
-
-            uView.setCursor(0,0);
-            uView.setFontType(0);
-            uView.print("2");
-            
-            customGauge0(degreesF_3*10, minDegreesF_3*10, maxDegreesF_3*10);
-            uView.display();
-            delete widget1;
-
-            // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            //ledIntensity = getLedIntensityFromTemp(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
-            //showRGB(ledIntensity);
-            showTempRGB(degreesF_3, TEMP_LIM_LO, TEMP_LIM_HI);
-
-            //delay(500);// 1 s for temp
-            break;
-        */    
-        // Outside Sensor (Sensor 1)
-        case tempSensor2Mode: // Outdoor Sensor
-            // Update the microview display
-            uView.clear(PAGE);
-            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
-            widget1 = new MicroViewSlider(18, 20, minDegreesF_1*10, maxDegreesF_1*10, WIDGETSTYLE0 + WIDGETNOVALUE);
-            // draw a fixed "F" text
-            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
-            uView.print("F");
-
-            uView.setCursor(0,0);
-            uView.setFontType(0);
-            uView.print("2         O");
-            
-            customGauge0(degreesF_1*10, minDegreesF_1*10, maxDegreesF_1*10);
-            uView.display();
-            delete widget1;
-
-            // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            //ledIntensity = getLedIntensityFromTemp(degreesF_1, minDegreesF_1, maxDegreesF_1);
-            //showRGB(ledIntensity);
-            showTempRGB(degreesF_1, TEMP_LIM_LO, TEMP_LIM_HI);
-
-            //delay(500);// 1 s for temp
-            break;
-
-        // Inside Sensor (sensor 2)
-        case tempSensor3Mode: // Inside Sensor
-            // Update the microview display
-            uView.clear(PAGE);
-            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
-            widget1 = new MicroViewSlider(18, 20, minDegreesF_2*10, maxDegreesF_2*10, WIDGETSTYLE0 + WIDGETNOVALUE);
-            // draw a fixed "F" text
-            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
-            uView.print("F");
-
-            uView.setCursor(0,0);
-            uView.setFontType(0);
-            uView.print("3         I");
-            
-            customGauge0(degreesF_2*10, minDegreesF_2*10, maxDegreesF_2*10);
-            uView.display();
-            delete widget1;
-
-            // Calculate the RGB Intensities: analogWrite(PIN, Value) where Value = 0-255
-            //ledIntensity = getLedIntensityFromTemp(degreesF_2, minDegreesF_2, maxDegreesF_2);
-            //showRGB(ledIntensity);
-            showTempRGB(degreesF_2, TEMP_LIM_LO, TEMP_LIM_HI);
-            //delay(500);// 1 s for temp
-            break;
-
-        /*
-        case LED1Mode:
-            // Update the microview display
-            uView.clear(PAGE);
-            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
-            widget1 = new MicroViewSlider(18, 20, minDegreesF_3*10, maxDegreesF_3*10, WIDGETSTYLE0 + WIDGETNOVALUE);
-            // draw a fixed "F" text
-            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
-            uView.print("F");
-
-            uView.setCursor(0,0);
-            uView.setFontType(0);
-            uView.print("5");
-            
-            customGauge0(degreesF_3*10, minDegreesF_3*10, maxDegreesF_3*10);
-            uView.display();
-            delete widget1;
-
-            // Loop Through LED colors, (0,0,0) to (255,255,255) and back            
-            int r = 0;
-            int g = 0;
-            int b = 0;
-            setRGBColor(r,g,b);
-                        
-            for (r=0; r <= 255; r++)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-            r = 255;
-            for (g=0; g <= 255; g++)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-            g = 255;
-            for (b=0; b <= 255; b++)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-            b = 255;  
-            delay(10);
-            for (r=255; r >=0; r--)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-            r = 0;
-            for (g=255; g >= 0; g--)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-            b = 0;
-            for (b=255; b <= 0; b--)
-            {
-              setRGBColor(r,g,b);
-              delay(10);
-            }
-                        
-            //delay(20000);// 1 s for temp
-            mode += 1;
-            delay(10);
+            showTempRGB(relPress, TEMP_LIM_LO, TEMP_LIM_HI);
             break;
         */
-    }
-    //delay(1000);
-}
+        /*
+        // Barometric Pressure Mode: Display the barometric Pressure information
+        case baroPressMode:
+            // Update the microview display
+            uView.clear(PAGE);
+            widget1 = new MicroViewGauge(31, 18, 260, 340, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw the fixed "inhg" text
+            uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
+            uView.print(F("in-hg"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("BP"));
+
+            customGauge0(relPress*10, relPressMin*10, relPressMax*10, 0);
+            //update1widget(relPress*10);
+            uView.display();
+            delete widget1;
+            showTempRGB(relPress);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+        */    
+        // Altitude Mode: Display the barometric Pressure measured altitude
+        case altitudeMode:
+            // Update the microview display
+            uView.clear(PAGE);
+            widget1 = new MicroViewGauge(31, 18, 260, 340, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw the fixed "ft" text
+            uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
+            uView.print(F("ft"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("AT"));
+
+            customGauge0(baseAltitude_m*3.28*10, 0*10, 15000*10, 0);
+            //update1widget(relPress*10);
+            uView.display();
+            delete widget1;
+            showTempRGB(baseAltitude_m*3.28);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+            
+        // Outside Temp Sensor Mode (Sensor 1)
+        case outsideTempMode: // Outdoor Sensor
+            // Update the microview display
+            uView.clear(PAGE);
+            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
+            widget1 = new MicroViewSlider(18, 20, minDegF_Out*10, maxDegF_Out*10, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw a fixed "F" text
+            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
+            uView.print(F("F"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("TO"));
+            
+            customGauge0(degF_Out*10, minDegF_Out*10, maxDegF_Out*10, 1);
+            uView.display();
+            delete widget1;
+
+            showTempRGB(degF_Out);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+
+        // Inside Temp Sensor Mode (sensor 2)
+        case insideTempMode: // Inside Sensor
+            // Update the microview display
+            uView.clear(PAGE);
+            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
+            widget1 = new MicroViewSlider(18, 20, minDegF_In*10, maxDegF_In*10, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw a fixed "F" text
+            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
+            uView.print(F("F"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("TI"));
+            
+            customGauge0(degF_In*10, minDegF_In*10, maxDegF_In*10, 1);
+            uView.display();
+            delete widget1;
+            
+            showTempRGB(degF_In);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+
+        // Barometer Temp Sensor Mode
+        case baroTempMode: // Barometer built in temp sensor
+            // Update the microview display
+            uView.clear(PAGE);
+            //widget1 = new MicroViewGauge(35, 17, -200, 1300, WIDGETSTYLE0 + WIDGETNOVALUE);
+            widget1 = new MicroViewSlider(18, 20, baroTempMin*10, baroTempMax*10, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw a fixed "F" text
+            uView.setCursor(widget1->getX() + 13, widget1->getY() + 10);
+            uView.print(F("F"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("TB"));
+            
+            customGauge0(baroTemp*10, baroTempMin*10, baroTempMax*10, 1);
+            uView.display();
+            delete widget1;
+            
+            showTempRGB(baroTemp);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+
+        // Relative Humidity Mode: Display the barometric Pressure information
+        case humTempMode:
+            // Update the microview display
+            uView.clear(PAGE);
+            widget1 = new MicroViewGauge(31, 18, 0, 1000, WIDGETSTYLE0 + WIDGETNOVALUE);
+            // draw the fixed "inhg" text
+            uView.setCursor(widget1->getX() - 11, widget1->getY() + 11);
+            uView.print(F("%"));
+
+            uView.setCursor(0,0);
+            uView.setFontType(0);
+            uView.print(F("RH"));
+
+            customGauge0(relHumidity*10, relHumidityMin*10, relHumidityMax*10, 0);
+            //update1widget(relPress*10);
+            uView.display();
+            delete widget1;
+            showTempRGB(relHumidity);//, TEMP_LIM_LO, TEMP_LIM_HI);
+            break;
+
+        
+    }// End Of Switch Case
+}// End of Main
 
 // Update function for Temp Sensor Screen (Demo 12?)
-void customGauge0(int16_t val, int16_t minVal, int16_t maxVal) {
+void customGauge0(int16_t val, int16_t minVal, int16_t maxVal, uint8_t mainFontSize) {
   widget1->setValue(val);
   
   uView.setCursor(widget1->getX() - 0, widget1->getY() - 18);
-  uView.setFontType(1);
+  uView.setFontType(mainFontSize);
   // add leading space if necessary, to right justify.
   // only 2 digit (plus decimal) numbers are supported.
   if (val < 100 && val > 0) 
@@ -385,53 +400,12 @@ void customGauge0(int16_t val, int16_t minVal, int16_t maxVal) {
   uView.print((float)maxVal /10, 1);
 }
 
-// Function to update widget1
+/*// Function to update widget1
 void update1widget(int16_t val) {
   widget1->setValue(val);
-}
+}*/
 
-/*
-void showRGB(int color)
-{
-  int redIntensity;
-  int greenIntensity;
-  int blueIntensity;
-
-  // Here we'll use an "if / else" statement to determine which
-  // of the three (R,G,B) zones x falls into. Each of these zones
-  // spans 255 because analogWrite() wants a number from 0 to 255.
-
-  // In each of these zones, we'll calculate the brightness
-  // for each of the red, green, and blue LEDs within the RGB LED.
-
-  if (color <= 255)          // zone 1
-  {
-    redIntensity = 255 - color;    // red goes from on to off
-    greenIntensity = color;        // green goes from off to on
-    blueIntensity = 0;             // blue is always off
-  }
-  else if (color <= 511)     // zone 2
-  {
-    redIntensity = 0;                     // red is always off
-    greenIntensity = 255 - (color - 256); // green on to off
-    blueIntensity = (color - 256);        // blue off to on
-  }
-  else // color >= 512       // zone 3
-  {
-    redIntensity = (color - 512);         // red off to on
-    greenIntensity = 0;                   // green is always off
-    blueIntensity = 255 - (color - 512);  // blue on to off
-  }
-
-  // Now that the brightness values have been set, command the LED
-  // to those values
-
-  analogWrite(RED_PIN, redIntensity);
-  analogWrite(BLUE_PIN, blueIntensity);
-  analogWrite(GREEN_PIN, greenIntensity);
-}
-*/
-void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi)
+void showTempRGB(float currentTemp)//, float tempThresholdLo, float tempThresholdHi)
 {
   int redIntensity;
   int greenIntensity;
@@ -502,81 +476,106 @@ void showTempRGB(float currentTemp, float tempThresholdLo, float tempThresholdHi
   // Now that the brightness values have been set, command the LED
   // to those values
 
-  mySerial.print("R=");
+  mySerial.print(F("R="));
   mySerial.print(redIntensity);
-  mySerial.print("; ");
-  mySerial.print("G=");
+  mySerial.print(F("; "));
+  mySerial.print(F("G="));
   mySerial.print(greenIntensity);
-  mySerial.print("; ");
-  mySerial.print("B=");
+  mySerial.print(F("; "));
+  mySerial.print(F("B="));
   mySerial.print(blueIntensity);
-  mySerial.println(";");
+  mySerial.println(F(";"));
   
   analogWrite(RED_PIN, redIntensity);
   analogWrite(BLUE_PIN, blueIntensity);
   analogWrite(GREEN_PIN, greenIntensity);
 }
 
-/*
-int getLedIntensityFromTemp(float currentTemp, float tempThresholdLo, float tempThresholdHi)
+void sendToSerial()
 {
-  int currentLedIntensity;
-  
-  // There are two scales working here.  We want temperature to go between 60-80 degrees to determine LED color.
-  // Anything less than 60 is just blue.  Anything more than 80 is just red.  Otherwise we want to choose the LED
-  // based on the current temperature.
-  if (currentTemp <= tempThresholdLo)
-  {
-    currentLedIntensity = 511; //Blue
-  }
-  else if (currentTemp >= tempThresholdHi)
-  {
-    currentLedIntensity = 0; // Red
-  }
-  else
-  {
-    currentLedIntensity = 511 - (currentTemp - tempThresholdLo)*(511/(tempThresholdHi - tempThresholdLo)); // Choose the color based on the scale
-  }
-  return (currentLedIntensity);
-}
-*/
-void sendToSerial(float t1Min, float t1Max, float t1, float t2Min, float t2Max, float t2, float t3Min, float t3Max, float t3)
-{
-    mySerial.print("T1_Min=");
-    mySerial.print(t1Min);
-    mySerial.print("; ");
-    mySerial.print("T1_Max=");
-    mySerial.print(t1Max);
-    mySerial.print("; ");
-    mySerial.print("T1=");
-    mySerial.print(t1);
-    mySerial.print("; ");
-    mySerial.print("T2_Min=");
-    mySerial.print(t2Min);
-    mySerial.print("; ");
-    mySerial.print("T2_Max=");
-    mySerial.print(t2Max);
-    mySerial.print("; ");
-    mySerial.print("T2=");
-    mySerial.print(t2);
-    mySerial.print("; ");
-    mySerial.print("T3_Min=");
-    mySerial.print(t3Min);
-    mySerial.print("; ");
-    mySerial.print("T3_Max=");
-    mySerial.print(t3Max);
-    mySerial.print("; ");
-    mySerial.print("T3=");
-    mySerial.print(t3);
-    mySerial.println(";");
+    mySerial.print(F("T1_Min="));
+    mySerial.print(minDegF_Out);
+    mySerial.print(F("; "));
+    mySerial.print(F("T1_Max="));
+    mySerial.print(maxDegF_Out);
+    mySerial.print(F("; "));
+    mySerial.print(F("T1="));
+    mySerial.print(degF_Out);
+    mySerial.print(F("; "));
+    mySerial.print(F("T2_Min="));
+    mySerial.print(minDegF_In);
+    mySerial.print(F("; "));
+    mySerial.print(F("T2_Max="));
+    mySerial.print(maxDegF_In);
+    mySerial.print(F("; "));
+    mySerial.print(F("T2="));
+    mySerial.print(degF_In);
+    mySerial.print(F("; "));
+    mySerial.print(F("RH_Min="));
+    mySerial.print(relHumidityMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("RH_Max="));
+    mySerial.print(relHumidityMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("RH="));
+    mySerial.print(relHumidity);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh_Min="));
+    mySerial.print(humTempfMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh_Max="));
+    mySerial.print(humTempfMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("TRh="));
+    mySerial.print(humTempf);
+    mySerial.print(F("; "));
+    mySerial.print(F("TBr_Min="));
+    mySerial.print(baroTempMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("TBr_Max="));
+    mySerial.print(baroTempMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("TBr="));
+    mySerial.print(baroTemp);
+    mySerial.print(F("; "));
+    mySerial.print(F("P="));
+    mySerial.print(relPress);
+    mySerial.print(F("; "));
+    mySerial.print(F("P_Min="));
+    mySerial.print(relPressMin);
+    mySerial.print(F("; "));
+    mySerial.print(F("P_Max="));
+    mySerial.print(relPressMax);
+    mySerial.print(F("; "));
+    mySerial.print(F("Alt="));
+    mySerial.print(baseAltitude_m*3.28);
+    mySerial.println(F(";"));
 }
 
-void setRGBColor(int redIntensity, int greenIntensity, int blueIntensity)
+void resetStatistics()
+{
+    maxDegF_Out = -20;
+    minDegF_Out = 130;
+    maxDegF_In = -20;
+    minDegF_In = 130;
+    //maxDegreesF_3 = -20;
+    //minDegreesF_3 = 130;
+    baroTempMax = -20;
+    baroTempMin = 130;
+    relPressMax = 28.00;
+    relPressMin = 31.00;
+    relHumidityMax = 0.0;
+    relHumidityMin = 100.0;
+    humTempfMax = -20.0;
+    humTempfMin = 130.0;
+}
+
+/*void setRGBColor(int redIntensity, int greenIntensity, int blueIntensity)
 {
   analogWrite(RED_PIN, redIntensity);
   analogWrite(GREEN_PIN, greenIntensity);
   analogWrite(BLUE_PIN, blueIntensity);
-}
+}*/
 
 void modeChange()
 {
@@ -596,4 +595,26 @@ void modeChange()
     }
   }
   last_interrupt_time = interrupt_time;
+}
+
+double sealevel_mb(double P_Pa, double A_m)
+// Given Pressure P (Pa)taken at altitude A (meters)
+// return equivalent pressure (mb or hPa) at sea level
+{
+  return ( (P_Pa/100)/pow(1-(A_m/44330.0),5.255));
+}
+
+double sealevel_inhg(double P_Pa, double A_m)
+// Same as above, but return in inhg units
+{
+  double pressVar_mb;
+  pressVar_mb = sealevel_mb(P_Pa, A_m);
+  return ( pressVar_mb * 0.02953); // 1 mb = 0.02953 inhg
+}
+
+double altitude(double P, double P0)
+// Given a pressure measurement P (Pa) and the pressure at a baseline P0 (Pa),
+// return altitude (meters) above baseline.
+{
+  return(44330.0*(1-pow(P/P0,1/5.255)));
 }
