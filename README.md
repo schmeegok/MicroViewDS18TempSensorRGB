@@ -24,11 +24,8 @@ all the way to Red for hot).
 
 Currently:
 The project for now does use both temp-sensors and the RGB LED.  The mode of the display is controlled by push-button (to toggle modes), and 
-the RGB LED works differenty for each mode.
+the RGB LED works differenty for each mode.  Additionally, I have added a humidity sensor and T5403 barometric pressure sensor.
 
-What's next:
-I want to build in serial output to log temps on an external Raspberry Pi.  The Pi  will collect a time-frame of samples and do one or all of the following:
-1. Email the log file to me (so I can set it up at home and see what the temp is like back at home).
-2. Plot the temp trend (and possibly email the image).
-3. Save off the log files for later viewing.
+The MicroView weather station has been connected to an older Raspberry Pi 1 with WIFI adapter.  The Raspberry Pi runs a python script at boot to control the power up sequence of the MicroView, read the data off of the serial port, and log the sensor data to https://data.sparkfun.com/streams/NJXyDLYX2ns5G5nG8pZz
 
+Also, the sensor data is sent to Weather Underground to provide weather data to their Personal Weather Station Network.  You can see the station data broadcast here: https://www.wunderground.com/personal-weather-station/dashboard?ID=KCOCOLOR604#history
