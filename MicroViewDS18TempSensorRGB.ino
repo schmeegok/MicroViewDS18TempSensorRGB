@@ -36,7 +36,7 @@ double relPress, relPressMax, relPressMin, absPress;
 float baroTemp, baroTempMax, baroTempMin;
 //double baseAltitude_m = 2591.11; //8501 feet Woodland Park
 double baseAltitude_m = 2028.00; //6654 feet Colorado Springs
-double calFactor = 0.07;
+//double calFactor = 0.07;
 
 //int button1State;  // variable to hold the pushbutton states
 //int lastButton1State = HIGH;
@@ -123,7 +123,7 @@ void loop(void)
     absPress = barometer.getPressure(MODE_ULTRA);
 
     // Sometime this may return negative values so we only want good values
-    relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+    relPress = sealevel_inhg(absPress, baseAltitude_m);// - calFactor;
     //relPress = 30.01; // Simulated Value
      // Bumped this from 28:32 to 26:34 since travelling down elevation caused way high unajusted pressure
     while (relPress < 26.00 )
@@ -131,7 +131,7 @@ void loop(void)
         mySerial.print(F("Pressure measurement too low (range 26.00 to 34.00): "));
         mySerial.print(relPress);
         mySerial.println(F(" in-hg"));
-        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+        relPress = sealevel_inhg(absPress, baseAltitude_m);// - calFactor;
     }
     while (relPress > 34 && attempts < maxAttempts)
     {
@@ -141,7 +141,7 @@ void loop(void)
         mySerial.print(attempts);
         mySerial.print(F(" of "));
         mySerial.println(maxAttempts);
-        relPress = sealevel_inhg(absPress, baseAltitude_m) - calFactor;
+        relPress = sealevel_inhg(absPress, baseAltitude_m);// - calFactor;
         attempts += 1;
     }
 
